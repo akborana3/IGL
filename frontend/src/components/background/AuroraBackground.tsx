@@ -1,111 +1,102 @@
-/** Animated aurora background with React Three Fiber — floating particles, glowing orbs, parallax. */
+/** Animated aurora background — pure CSS/SVG, lightweight, no Three.js dependency. */
 
 "use client";
 
-import { Canvas, useFrame } from "@react-three/fiber";
-import { useMemo, useRef, Suspense } from "react";
-import * as THREE from "three";
-
-function FloatingOrbs() {
-  const groupRef = useRef<THREE.Group>(null);
-
-  const orbs = useMemo(() => {
-    return Array.from({ length: 5 }).map((_, i) => ({
-      position: [
-        (Math.random() - 0.5) * 10,
-        (Math.random() - 0.5) * 6,
-        (Math.random() - 0.5) * 4 - 2,
-      ] as [number, number, number],
-      color: i % 2 === 0 ? "#a855f7" : "#3b82f6",
-      scale: 0.5 + Math.random() * 1.5,
-      speed: 0.3 + Math.random() * 0.5,
-    }));
-  }, []);
-
-  useFrame((state) => {
-    if (!groupRef.current) return;
-    const t = state.clock.elapsedTime;
-    groupRef.current.children.forEach((child, i) => {
-      child.position.y = orbs[i].position[1] + Math.sin(t * orbs[i].speed) * 0.5;
-      child.position.x = orbs[i].position[0] + Math.cos(t * orbs[i].speed * 0.7) * 0.3;
-    });
-    // Subtle parallax with mouse
-    groupRef.current.rotation.y = state.mouse.x * 0.1;
-    groupRef.current.rotation.x = state.mouse.y * 0.05;
-  });
-
-  return (
-    <group ref={groupRef}>
-      {orbs.map((orb, i) => (
-        <mesh key={i} position={orb.position} scale={orb.scale}>
-          <sphereGeometry args={[1, 32, 32]} />
-          <meshBasicMaterial color={orb.color} transparent opacity={0.08} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-function Particles() {
-  const pointsRef = useRef<THREE.Points>(null);
-
-  const positions = useMemo(() => {
-    const count = 200;
-    const arr = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      arr[i * 3] = (Math.random() - 0.5) * 20;
-      arr[i * 3 + 1] = (Math.random() - 0.5) * 12;
-      arr[i * 3 + 2] = (Math.random() - 0.5) * 6 - 2;
-    }
-    return arr;
-  }, []);
-
-  useFrame((state) => {
-    if (!pointsRef.current) return;
-    pointsRef.current.rotation.y = state.clock.elapsedTime * 0.02;
-    pointsRef.current.rotation.x = state.clock.elapsedTime * 0.01;
-  });
-
-  return (
-    <points ref={pointsRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={positions.length / 3}
-          array={positions}
-          itemSize={3}
-        />
-      </bufferGeometry>
-      <pointsMaterial
-        size={0.03}
-        color="#a855f7"
-        transparent
-        opacity={0.4}
-        sizeAttenuation
-      />
-    </points>
-  );
-}
+import { useEffect, useRef } from "react";
 
 export function AuroraBackground() {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Subtle mouse parallax
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+      const x = (e.clientX / window.innerWidth - 0.5) * 20;
+      const y = (e.clientY / window.innerHeight - 0.5) * 20;
+      containerRef.current.style.setProperty("--parallax-x", `${x}px`);
+      containerRef.current.style.setProperty("--parallax-y", `${y}px`);
+    };
+    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+
   return (
-    <div className="fixed inset-0 -z-10 pointer-events-none">
-      {/* CSS aurora gradient base */}
+    <div
+      ref={containerRef}
+      className="fixed inset-0 -z-10 pointer-events-none overflow-hidden"
+      style={{ "--parallax-x": "0px", "--parallax-y": "0px" } as React.CSSProperties}
+    >
+      {/* Base gradient */}
       <div className="absolute inset-0 aurora-bg opacity-60" />
 
-      {/* Three.js canvas overlay */}
-      <Canvas
-        camera={{ position: [0, 0, 5], fov: 60 }}
-        style={{ background: "transparent" }}
-        dpr={[1, 1.5]}
-      >
-        <Suspense fallback={null}>
-          <FloatingOrbs />
-          <Particles />
-        </Suspense>
-      </Canvas>
+      {/* Glowing orbs */}
+      <div
+        className="absolute -top-20 -left-20 w-[500px] h-[500px] rounded-full opacity-20 blur-[100px] animate-float"
+        style={{
+          background: "radial-gradient(circle, #a855f7 0%, transparent 70%)",
+          transform: "translate(var(--parallax-x), var(--parallax-y))",
+        }}
+      />
+      <div
+        className="absolute top-1/3 -right-20 w-[400px] h-[400px] rounded-full opacity-15 blur-[100px] animate-float"
+        style={{
+          background: "radial-gradient(circle, #3b82f6 0%, transparent 70%)",
+          animationDelay: "2s",
+          transform: "translate(calc(var(--parallax-x) * -1), var(--parallax-y))",
+        }}
+      />
+      <div
+        className="absolute bottom-0 left-1/3 w-[450px] h-[450px] rounded-full opacity-10 blur-[120px] animate-float"
+        style={{
+          background: "radial-gradient(circle, #ec4899 0%, transparent 70%)",
+          animationDelay: "4s",
+        }}
+      />
 
-      {/* Vignette overlay */}
+      {/* Floating particles via SVG */}
+      <svg className="absolute inset-0 w-full h-full opacity-30" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="particleGrad">
+            <stop offset="0%" stopColor="#a855f7" stopOpacity="0.8" />
+            <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        {Array.from({ length: 30 }).map((_, i) => {
+          const cx = (i * 37) % 100;
+          const cy = (i * 53) % 100;
+          const r = 1 + (i % 3);
+          const delay = (i % 6) * 0.8;
+          return (
+            <circle
+              key={i}
+              cx={`${cx}%`}
+              cy={`${cy}%`}
+              r={r}
+              fill="url(#particleGrad)"
+              style={{
+                animation: `float ${6 + (i % 4)}s ease-in-out infinite`,
+                animationDelay: `${delay}s`,
+              }}
+            />
+          );
+        })}
+      </svg>
+
+      {/* Animated gradient mesh overlay */}
+      <div
+        className="absolute inset-0 opacity-20"
+        style={{
+          backgroundImage: `
+            radial-gradient(circle at 20% 30%, rgba(168, 85, 247, 0.15) 0%, transparent 40%),
+            radial-gradient(circle at 80% 70%, rgba(59, 130, 246, 0.15) 0%, transparent 40%),
+            radial-gradient(circle at 50% 50%, rgba(236, 72, 153, 0.08) 0%, transparent 50%)
+          `,
+          backgroundSize: "200% 200%",
+          animation: "aurora-shift 15s ease infinite",
+        }}
+      />
+
+      {/* Vignette */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0a0a0f]" />
     </div>
   );
