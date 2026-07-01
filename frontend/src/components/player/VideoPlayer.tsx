@@ -2,11 +2,8 @@
 
 "use client";
 
-import { MediaPlayer, MediaProvider } from "@vidstack/react";
-import {
-  DefaultVideoLayout,
-  defaultLayoutIcons,
-} from "@vidstack/react/player/layouts/default";
+import { MediaPlayer, MediaProvider, Poster } from "@vidstack/react";
+import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/layouts/default";
 import "@vidstack/react/player/styles/default/theme.css";
 import "@vidstack/react/player/styles/default/layouts/video.css";
 import { useEffect, useRef } from "react";
@@ -101,14 +98,14 @@ export function VideoPlayer({ src, title, slug, poster, initialPosition }: Video
         ref={playerRef}
         src={src}
         title={title}
-        poster={poster}
-        streamType="video"
         load="visible"
         playsInline
         autoPlay
         className="rounded-2xl overflow-hidden shadow-premium"
       >
-        <MediaProvider />
+        <MediaProvider>
+          {poster && <Poster className="vds-poster" src={poster} alt={title} />}
+        </MediaProvider>
         <DefaultVideoLayout icons={defaultLayoutIcons} />
       </MediaPlayer>
     </div>
