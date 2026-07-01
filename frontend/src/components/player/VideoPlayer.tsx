@@ -4,10 +4,9 @@
 
 import { MediaPlayer, MediaProvider } from "@vidstack/react";
 import {
+  DefaultVideoLayout,
   defaultLayoutIcons,
-  defaultMediaControls,
-  defaultMediaPlayerPlugins,
-} from "@vidstack/react/player";
+} from "@vidstack/react/player/layouts/default";
 import "@vidstack/react/player/styles/default/theme.css";
 import "@vidstack/react/player/styles/default/layouts/video.css";
 import { useEffect, useRef } from "react";
@@ -110,10 +109,7 @@ export function VideoPlayer({ src, title, slug, poster, initialPosition }: Video
         className="rounded-2xl overflow-hidden shadow-premium"
       >
         <MediaProvider />
-        {defaultMediaControls({
-          plugins: defaultMediaPlayerPlugins,
-          icons: defaultLayoutIcons,
-        })}
+        <DefaultVideoLayout icons={defaultLayoutIcons} />
       </MediaPlayer>
     </div>
   );
