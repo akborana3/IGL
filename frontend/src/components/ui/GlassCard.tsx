@@ -1,4 +1,5 @@
 /** Reusable glassmorphism card component. */
+"use client";
 
 "use client";
 

@@ -1,4 +1,5 @@
 /** Glass navbar — sticky, transparent at top, blur on scroll, shrink on scroll. */
+"use client";
 
 "use client";
 

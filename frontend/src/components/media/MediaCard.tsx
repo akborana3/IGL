@@ -1,4 +1,5 @@
 /** Media card with thumbnail, glass overlay, hover animations, badges, and actions. */
+"use client";
 
 "use client";
 

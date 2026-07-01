@@ -1,4 +1,5 @@
 /** Horizontal scrolling row of MediaCards with scroll reveal animation. */
+"use client";
 
 "use client";
 

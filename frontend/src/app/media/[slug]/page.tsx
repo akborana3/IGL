@@ -1,4 +1,5 @@
 /** Media detail page — cinematic header, glass info panel, related media. */
+"use client";
 
 "use client";
 

@@ -1,4 +1,5 @@
 /** Magnetic button with hover tracking effect. */
+"use client";
 
 "use client";
 

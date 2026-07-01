@@ -1,4 +1,5 @@
 /** Categories page — beautiful category cards with large backgrounds. */
+"use client";
 
 "use client";
 

@@ -1,4 +1,5 @@
 /** Large cinematic auto-rotating hero banner with glass info panel. */
+"use client";
 
 "use client";
 

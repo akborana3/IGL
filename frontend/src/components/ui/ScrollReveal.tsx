@@ -1,4 +1,5 @@
 /** Scroll reveal wrapper using Framer Motion. */
+"use client";
 
 "use client";
 
