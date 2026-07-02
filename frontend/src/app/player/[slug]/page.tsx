@@ -1,4 +1,4 @@
-/** Video player page — Vidstack player with resume playback. */
+/** Video player page — conditional Vidstack (MP4) or Artplayer (MKV). */
 
 "use client";
 
@@ -7,8 +7,9 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { VideoPlayer } from "@/components/player/VideoPlayer";
+import { MkvPlayer } from "@/components/player/MkvPlayer";
 import { fetchMediaDetail } from "@/services/mediaService";
-import { getStreamUrl } from "@/services/streamService";
+import { getStreamUrl, getStreamUrlWithFormat } from "@/services/streamService";
 import { useWatchHistoryStore } from "@/stores/watchHistory";
 import { Spinner } from "@/components/ui/Spinner";
 import type { MediaDetail } from "@/types";
@@ -47,6 +48,12 @@ export default function PlayerPage() {
   const savedProgress = getProgress(media.slug);
   const initialPosition = savedProgress?.position || 0;
 
+  // Detect MKV — use Artplayer, otherwise Vidstack
+  const { url: streamUrl, isMkv } = getStreamUrlWithFormat(
+    media.telegram_message_id,
+    media.mime_type
+  );
+
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6">
       {/* Back button */}
@@ -54,14 +61,24 @@ export default function PlayerPage() {
         <ArrowLeft size={18} /> Back to Details
       </Link>
 
-      {/* Player */}
-      <VideoPlayer
-        src={getStreamUrl(media.telegram_message_id)}
-        title={media.title}
-        slug={media.slug}
-        poster={media.thumbnail || undefined}
-        initialPosition={initialPosition}
-      />
+      {/* Conditional player */}
+      {isMkv ? (
+        <MkvPlayer
+          src={streamUrl}
+          title={media.title}
+          slug={media.slug}
+          poster={media.thumbnail || undefined}
+          initialPosition={initialPosition}
+        />
+      ) : (
+        <VideoPlayer
+          src={getStreamUrl(media.telegram_message_id)}
+          title={media.title}
+          slug={media.slug}
+          poster={media.thumbnail || undefined}
+          initialPosition={initialPosition}
+        />
+      )}
 
       {/* Title below player */}
       <div className="mt-6">
@@ -69,6 +86,7 @@ export default function PlayerPage() {
         <div className="flex flex-wrap gap-3 mt-2 text-sm text-gray-400">
           <span>{media.category}</span>
           {media.duration > 0 && <span>• {Math.floor(media.duration / 60)} min</span>}
+          {isMkv && <span className="text-neon-purple">• MKV → fMP4 remux</span>}
           {savedProgress && (
             <span className="text-neon-purple">• Resumed from {Math.floor(savedProgress.position / 60)} min</span>
           )}
