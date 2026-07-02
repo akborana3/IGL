@@ -41,8 +41,7 @@ async def stream_media_chunks(
         if msg is None or msg.media is None:
             raise FileNotFoundError(f"Message {telegram_message_id} has no media")
 
-        # Use Telethon's download_stream to read in chunks
-        # iter_download provides offset and limit support
+        # Use Telethon's iter_download to read in chunks
         async for chunk in client.iter_download(
             msg.media,
             offset=offset,
@@ -80,8 +79,11 @@ async def get_media_size(telegram_message_id: int) -> Optional[int]:
     return None
 
 
-async def get_media_thumbnail(telegram_message_id: int) -> Optional[bytes]:
-    """Fetch the thumbnail bytes for a Telegram media message."""
+async def download_thumbnail_bytes(telegram_message_id: int) -> Optional[bytes]:
+    """Download the thumbnail bytes for a Telegram media message.
+
+    Returns raw bytes of the thumbnail image, or None if no thumbnail available.
+    """
     if not is_connected():
         return None
 
@@ -93,9 +95,13 @@ async def get_media_thumbnail(telegram_message_id: int) -> Optional[bytes]:
         return None
 
     try:
-        # Download just the thumbnail
+        # Download just the thumbnail (small preview image)
         thumbnail = await client.download_media(msg, thumb=True, file=bytes)
         return thumbnail
     except Exception as e:
         logger.error("Error fetching thumbnail for %d: %s", telegram_message_id, e)
         return None
+
+
+# Keep backward-compatible alias
+get_media_thumbnail = download_thumbnail_bytes

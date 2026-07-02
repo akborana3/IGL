@@ -11,7 +11,9 @@ from telethon.errors import FloodWaitError
 
 from app.database.connection import get_collection
 from app.models.media import new_media_doc
+from app.services.thumbnail_service import save_thumbnail, thumbnail_exists, get_thumbnail_url
 from app.telethon_exec.client import get_channel, get_client, is_connected
+from app.telethon_exec.streamer import download_thumbnail_bytes
 from app.utils.helpers import (
     extract_tags,
     extract_title_from_filename,
@@ -53,7 +55,6 @@ def _extract_metadata(msg: Message) -> Optional[Dict[str, Any]]:
     duration = 0
     width = 0
     height = 0
-    thumbnail_bytes = None
 
     for attr in doc.attributes:
         attr_class = type(attr).__name__
@@ -69,16 +70,16 @@ def _extract_metadata(msg: Message) -> Optional[Dict[str, Any]]:
     mime_type = doc.mime_type or ""
     file_size = doc.size or 0
 
-    # Extract thumbnail if available
-    if hasattr(doc, "thumbs") and doc.thumbs:
-        # Store the smallest thumb size type; actual bytes fetched on demand
-        thumbnail_bytes = None  # Will be fetched separately if needed
-
     caption = msg.message or ""
     title = extract_title_from_filename(filename) if filename else (caption[:80] if caption else f"Media {msg.id}")
     slug = slugify(title)
     category = guess_category(filename, mime_type)
     tags = extract_tags(filename, caption)
+
+    # Check if thumbnail is available in document attributes
+    has_thumb = False
+    if hasattr(doc, "thumbs") and doc.thumbs:
+        has_thumb = True
 
     return {
         "telegram_message_id": msg.id,
@@ -94,10 +95,31 @@ def _extract_metadata(msg: Message) -> Optional[Dict[str, Any]]:
         "height": height,
         "file_size": file_size,
         "mime_type": mime_type,
-        "thumbnail": None,  # Fetched on demand
+        "has_thumb": has_thumb,
+        "thumbnail": None,  # Will be set after downloading
         "upload_date": msg.date or datetime.now(timezone.utc),
         "filename": filename,
     }
+
+
+async def _fetch_and_save_thumbnail(telegram_message_id: int) -> Optional[str]:
+    """Download thumbnail from Telegram and save to HF Bucket storage.
+
+    Returns the thumbnail filename (relative path) if successful, None otherwise.
+    """
+    # Skip if already exists in storage
+    if thumbnail_exists(telegram_message_id):
+        return f"{telegram_message_id}.jpg"
+
+    try:
+        thumb_bytes = await download_thumbnail_bytes(telegram_message_id)
+        if thumb_bytes:
+            filename = save_thumbnail(telegram_message_id, thumb_bytes, ext="jpg")
+            return filename
+    except Exception as e:
+        logger.warning("Failed to fetch thumbnail for msg %d: %s", telegram_message_id, e)
+
+    return None
 
 
 async def _ensure_unique_slug(slug: str, exclude_msg_id: int) -> str:
@@ -142,6 +164,15 @@ async def initial_scan() -> int:
             # Ensure unique slug
             metadata["slug"] = await _ensure_unique_slug(metadata["slug"], metadata["telegram_message_id"])
 
+            # Fetch and save thumbnail to HF Bucket storage
+            thumb_filename = None
+            if metadata.get("has_thumb"):
+                logger.info("Fetching thumbnail for message %d...", metadata["telegram_message_id"])
+                thumb_filename = await _fetch_and_save_thumbnail(metadata["telegram_message_id"])
+
+            # Build thumbnail URL
+            thumbnail_url = get_thumbnail_url(thumb_filename) if thumb_filename else None
+
             doc = new_media_doc(
                 telegram_message_id=metadata["telegram_message_id"],
                 channel_id=metadata["channel_id"],
@@ -156,7 +187,7 @@ async def initial_scan() -> int:
                 height=metadata["height"],
                 file_size=metadata["file_size"],
                 mime_type=metadata["mime_type"],
-                thumbnail=metadata["thumbnail"],
+                thumbnail=thumbnail_url,
                 upload_date=metadata["upload_date"],
             )
 
@@ -203,6 +234,13 @@ async def sync_new_messages() -> int:
 
             metadata["slug"] = await _ensure_unique_slug(metadata["slug"], metadata["telegram_message_id"])
 
+            # Fetch and save thumbnail
+            thumb_filename = None
+            if metadata.get("has_thumb"):
+                thumb_filename = await _fetch_and_save_thumbnail(metadata["telegram_message_id"])
+
+            thumbnail_url = get_thumbnail_url(thumb_filename) if thumb_filename else None
+
             doc = new_media_doc(
                 telegram_message_id=metadata["telegram_message_id"],
                 channel_id=metadata["channel_id"],
@@ -217,7 +255,7 @@ async def sync_new_messages() -> int:
                 height=metadata["height"],
                 file_size=metadata["file_size"],
                 mime_type=metadata["mime_type"],
-                thumbnail=metadata["thumbnail"],
+                thumbnail=thumbnail_url,
                 upload_date=metadata["upload_date"],
             )
 
