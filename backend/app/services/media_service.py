@@ -144,6 +144,7 @@ async def get_related_media(slug: str, limit: int = 10) -> List[Dict[str, Any]]:
     if len(items) < limit:
         existing_ids = [item["slug"] for item in items] + [slug]
         cursor = col.find({"slug": {"$nin": existing_ids}, "category": category}).limit(limit - len(items))
-        items.extend(_serialize(doc) async for doc in cursor)
+        fallback = [_serialize(doc) async for doc in cursor]
+        items.extend(fallback)
 
     return items[:limit]
