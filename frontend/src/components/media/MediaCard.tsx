@@ -1,5 +1,4 @@
 /** Media card with thumbnail, glass overlay, hover animations, badges, and actions. */
-"use client";
 
 "use client";
 
@@ -7,7 +6,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { Play, Download, Share2, Heart, Eye } from "lucide-react";
 import type { Media } from "@/types";
-import { formatDuration, formatCount, getResolutionLabel, cn } from "@/lib/utils";
+import { formatDuration, formatCount, getResolutionLabel, getThumbnailUrl, cn } from "@/lib/utils";
 import { MediaCard3DTilt } from "./MediaCard3DTilt";
 import { useFavoritesStore } from "@/stores/favorites";
 import { useState } from "react";
@@ -57,10 +56,10 @@ export function MediaCard({ media, progress, className }: MediaCardProps) {
       <Link href={`/media/${media.slug}`} className="block">
         <div className={cn("relative aspect-video rounded-xl overflow-hidden glass-card", className)}>
           {/* Thumbnail / placeholder */}
-          {media.thumbnail ? (
+          {getThumbnailUrl(media.thumbnail, media.telegram_message_id) ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={media.thumbnail}
+              src={getThumbnailUrl(media.thumbnail, media.telegram_message_id) || ""}
               alt={media.title}
               loading="lazy"
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"

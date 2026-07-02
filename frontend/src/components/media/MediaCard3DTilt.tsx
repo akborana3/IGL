@@ -1,5 +1,4 @@
 /** 3D tilt wrapper component for media cards. */
-"use client";
 
 "use client";
 

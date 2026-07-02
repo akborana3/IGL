@@ -1,5 +1,4 @@
 /** Beautiful error page. */
-"use client";
 
 "use client";
 

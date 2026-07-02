@@ -1,5 +1,4 @@
 /** Homepage — hero banner, trending, continue watching, recently added, etc. */
-"use client";
 
 "use client";
 

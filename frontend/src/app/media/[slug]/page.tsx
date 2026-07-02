@@ -1,5 +1,4 @@
 /** Media detail page — cinematic header, glass info panel, related media. */
-"use client";
 
 "use client";
 
@@ -14,7 +13,7 @@ import { useFavoritesStore } from "@/stores/favorites";
 import { MagneticButton } from "@/components/ui/MagneticButton";
 import { MediaRow } from "@/components/home/MediaRow";
 import { SkeletonCard } from "@/components/ui/Skeleton";
-import { formatDuration, formatFileSize, formatDate, formatCount, getResolutionLabel } from "@/lib/utils";
+import { formatDuration, formatFileSize, formatDate, formatCount, getResolutionLabel, getThumbnailUrl } from "@/lib/utils";
 import type { MediaDetail } from "@/types";
 
 export default function MediaDetailPage() {
@@ -78,9 +77,9 @@ export default function MediaDetailPage() {
         animate={{ opacity: 1, y: 0 }}
         className="relative w-full h-[40vh] min-h-[300px] rounded-3xl overflow-hidden mb-6"
       >
-        {media.thumbnail ? (
+        {getThumbnailUrl(media.thumbnail, media.telegram_message_id) ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={media.thumbnail} alt={media.title} className="w-full h-full object-cover" />
+          <img src={getThumbnailUrl(media.thumbnail, media.telegram_message_id) || ""} alt={media.title} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-[#1a0b2e] to-[#0f172a]" />
         )}

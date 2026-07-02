@@ -1,5 +1,4 @@
 /** Mobile bottom navigation — animated. */
-"use client";
 
 "use client";
 

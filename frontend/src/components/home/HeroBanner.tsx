@@ -1,5 +1,4 @@
 /** Large cinematic auto-rotating hero banner with glass info panel. */
-"use client";
 
 "use client";
 
@@ -8,7 +7,7 @@ import Link from "next/link";
 import { Play, Info } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Media } from "@/types";
-import { formatDuration } from "@/lib/utils";
+import { formatDuration, getThumbnailUrl } from "@/lib/utils";
 import { MagneticButton } from "@/components/ui/MagneticButton";
 
 interface HeroBannerProps {
@@ -41,10 +40,10 @@ export function HeroBanner({ items }: HeroBannerProps) {
           transition={{ duration: 1, ease: "easeInOut" }}
           className="absolute inset-0"
         >
-          {current.thumbnail ? (
+          {getThumbnailUrl(current.thumbnail, current.telegram_message_id) ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={current.thumbnail}
+              src={getThumbnailUrl(current.thumbnail, current.telegram_message_id) || ""}
               alt={current.title}
               className="w-full h-full object-cover"
             />
