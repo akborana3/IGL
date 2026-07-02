@@ -14,6 +14,7 @@ export const ENDPOINTS = {
   search: `${API_URL}/api/search`,
   stream: (messageId: number) => `${API_URL}/api/stream/${messageId}`,
   download: (messageId: number) => `${API_URL}/api/download/${messageId}`,
+  thumbnail: (messageId: number) => `${API_URL}/api/thumbnail/${messageId}`,
   adminLogin: `${API_URL}/api/admin/login`,
   adminDashboard: `${API_URL}/api/admin/dashboard`,
   adminAnalytics: `${API_URL}/api/admin/analytics`,

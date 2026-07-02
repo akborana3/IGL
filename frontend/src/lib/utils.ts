@@ -57,6 +57,17 @@ export function debounce<T extends (...args: any[]) => void>(fn: T, delay: numbe
   };
 }
 
+/** Get the thumbnail URL for a media item.
+ * Uses the stored thumbnail URL if available, otherwise falls back
+ * to the backend /api/thumbnail/{message_id} endpoint.
+ */
+export function getThumbnailUrl(thumbnail: string | null, messageId: number): string | null {
+  if (thumbnail) return thumbnail;
+  // Fall back to backend thumbnail endpoint
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:7860";
+  return `${apiUrl}/api/thumbnail/${messageId}`;
+}
+
 /** Get a resolution label from width/height. */
 export function getResolutionLabel(width: number, height: number): string {
   if (height >= 2160) return "4K";
