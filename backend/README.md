@@ -1,13 +1,3 @@
----
-title: IGL Backend
-emoji: 🎬
-colorFrom: indigo
-colorTo: purple
-sdk: docker
-pinned: false
-app_port: 7860
----
-
 # Premium OTT Streaming Platform — Backend
 
 FastAPI backend that powers the premium OTT streaming platform. Uses Telegram as media storage, MongoDB as metadata catalog, and streams media directly from Telegram via MTProto.

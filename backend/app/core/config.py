@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # Streaming
     chunk_size: int = 524288  # 512 KB chunks
 
+    # Storage (HF Bucket mount path for thumbnails)
+    storage_path: str = "/data/thumbnails"
+    storage_url: str = ""  # Public base URL for serving thumbnails (optional)
+
     @field_validator("cors_origins")
     @classmethod
     def parse_cors(cls, v: str) -> str:
