@@ -1,7 +1,8 @@
-"""FastAPI application entry point."""
+"""FastAPI application entry point — optimised for fast startup."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -30,30 +31,30 @@ PORT = int(os.environ.get("PORT", 7860))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan: startup and shutdown events."""
+    """Application lifespan — parallel startup for faster boot."""
     logger.info("=" * 60)
     logger.info("Starting OTT Streaming Platform backend...")
     logger.info("  Port: %d", PORT)
-    logger.info("  MongoDB URL: %s", settings.mongo_url[:50] + "..." if len(settings.mongo_url) > 50 else settings.mongo_url)
     logger.info("  CORS Origins: %s", settings.cors_origins)
     logger.info("=" * 60)
 
-    # Connect to MongoDB (non-fatal if unavailable)
-    await connect_db()
+    # --- Parallel init: MongoDB + Telegram at the same time ---
+    db_task = asyncio.create_task(connect_db())
+    tg_task = asyncio.create_task(_connect_telethon_safe())
 
-    if is_db_connected():
-        # Connect to Telegram
-        try:
-            await connect_telethon()
-            logger.info("Running initial scan...")
-            count = await initial_scan()
-            logger.info("Initial scan complete: %d items indexed", count)
-            start_sync_worker()
-            start_analytics_worker()
-        except Exception as e:
-            logger.error("Telegram connection failed: %s - running in degraded mode", e)
+    await asyncio.gather(db_task, tg_task)
+    db_ok = is_db_connected()
+
+    if db_ok:
+        # Start background workers immediately
+        start_sync_worker()
+        start_analytics_worker()
+
+        # Run initial scan in background (non-blocking — server is ready now)
+        if tg_task.result():
+            asyncio.create_task(_background_scan())
     else:
-        logger.warning("Skipping Telegram sync - MongoDB not available")
+        logger.warning("Skipping Telegram sync — MongoDB not available")
 
     logger.info("=" * 60)
     logger.info("Backend is LIVE on port %d", PORT)
@@ -69,6 +70,26 @@ async def lifespan(app: FastAPI):
     await disconnect_telethon()
     await disconnect_db()
     logger.info("Backend shutdown complete")
+
+
+async def _connect_telethon_safe() -> bool:
+    """Connect to Telegram, return True on success."""
+    try:
+        await connect_telethon()
+        return True
+    except Exception as e:
+        logger.error("Telegram connection failed: %s — running in degraded mode", e)
+        return False
+
+
+async def _background_scan() -> None:
+    """Run initial scan in background (non-blocking)."""
+    try:
+        logger.info("Running initial scan (background)...")
+        count = await initial_scan()
+        logger.info("Initial scan complete: %d items indexed", count)
+    except Exception as e:
+        logger.error("Initial scan error: %s", e)
 
 
 app = FastAPI(

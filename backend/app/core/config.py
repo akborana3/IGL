@@ -41,8 +41,17 @@ class Settings(BaseSettings):
     # Sync
     sync_interval_seconds: int = 300
 
-    # Streaming
-    chunk_size: int = 524288  # 512 KB chunks
+    # Streaming — tuned for performance
+    chunk_size: int = 1048576  # 1 MB chunks (larger = fewer Telegram round trips)
+    stream_buffer_size: int = 2097152  # 2 MB internal buffer for FFmpeg pipe
+    max_concurrent_streams: int = 10  # max simultaneous stream connections
+
+    # FFmpeg — for MKV → fMP4 remux
+    ffmpeg_path: str = "ffmpeg"
+    ffmpeg_buffer_size: str = "8192k"  # input buffer size for FFmpeg
+
+    # Message cache — avoids redundant Telegram API calls during seeking
+    message_cache_ttl: int = 120  # seconds before re-fetching message object
 
     # Storage (HF Bucket mount path for thumbnails)
     storage_path: str = "/data/thumbnails"

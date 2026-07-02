@@ -1,9 +1,12 @@
-"""Streaming and download endpoints with HTTP Range support."""
+"""Streaming and download endpoints with HTTP Range support.
+
+MKV files are automatically remuxed to fragmented MP4 via FFmpeg pipe.
+MP4, WebM, and audio files are streamed directly (passthrough).
+"""
 
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
@@ -11,20 +14,28 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from app.core.config import settings
 from app.services.analytics_service import track_download
-from app.services.media_service import get_media_by_message_id, get_media_by_slug, increment_downloads, increment_views
+from app.services.media_service import get_media_by_message_id, increment_downloads, increment_views
 from app.services.thumbnail_service import get_thumbnail_path
-from app.telethon_exec.streamer import get_media_size, stream_media_chunks
+from app.telethon_exec.streamer import get_media_size, stream_media_chunks, stream_remuxed_chunks
 from app.utils.helpers import build_content_range, parse_range_header
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["stream"])
 
+# MIME types that need FFmpeg remux → fMP4
+_REMUX_MIME_TYPES = {"video/x-matroska", "video/x-matroska-3d"}
+
+# Output MIME type after remux
+_REMUX_OUTPUT_MIME = "video/mp4"
+
+
+def _needs_remux(mime_type: str) -> bool:
+    """Check if this MIME type needs FFmpeg remuxing."""
+    return mime_type in _REMUX_MIME_TYPES
+
 
 async def _resolve_media_info(message_id: int) -> dict:
-    """Fetch media record and resolve file_size + mime_type.
-
-    Raises HTTPException if media not found or file size cannot be determined.
-    """
+    """Fetch media record and resolve file_size + mime_type."""
     media = await get_media_by_message_id(message_id)
     if not media:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
@@ -44,6 +55,9 @@ async def _resolve_media_info(message_id: int) -> dict:
     return {"media": media, "file_size": file_size, "mime_type": mime_type}
 
 
+# ---------------------------------------------------------------------------
+# HEAD — return headers without body (player uses this to check capabilities)
+# ---------------------------------------------------------------------------
 @router.head("/stream/{message_id}")
 async def stream_media_head(
     message_id: int,
@@ -51,12 +65,16 @@ async def stream_media_head(
 ) -> Response:
     """HEAD request — return headers without streaming body.
 
-    Vidstack and browsers send HEAD to check file size, range support,
-    and content type before initiating the actual GET stream.
+    For MKV files, reports Content-Type as video/mp4 because the GET
+    endpoint will remux to fMP4. This ensures the player knows it can play it.
     """
     info = await _resolve_media_info(message_id)
     file_size = info["file_size"]
     mime_type = info["mime_type"]
+
+    # For MKV, the GET endpoint remuxes to fMP4 — report as video/mp4
+    if _needs_remux(mime_type):
+        mime_type = _REMUX_OUTPUT_MIME
 
     try:
         start, end = parse_range_header(range or "", file_size)
@@ -83,16 +101,19 @@ async def stream_media_head(
     return Response(status_code=status_code, headers=headers, media_type=mime_type)
 
 
+# ---------------------------------------------------------------------------
+# GET stream — direct passthrough OR FFmpeg remux
+# ---------------------------------------------------------------------------
 @router.get("/stream/{message_id}")
 async def stream_media(
     message_id: int,
     request: Request,
     range: Optional[str] = Header(None),
 ) -> StreamingResponse:
-    """Stream media from Telegram with HTTP Range support.
+    """Stream media from Telegram.
 
-    Returns 200 with full content if no Range header, or 206 Partial Content
-    with the requested byte range.
+    - MP4/WebM/audio: direct passthrough with HTTP Range support
+    - MKV: FFmpeg remux to fragmented MP4 (codec copy, no re-encode)
     """
     info = await _resolve_media_info(message_id)
     media = info["media"]
@@ -102,7 +123,25 @@ async def stream_media(
     # Track view
     await increment_views(media["slug"])
 
-    # Parse Range header
+    # ---- MKV path: remux to fMP4 via FFmpeg ----
+    if _needs_remux(mime_type):
+        logger.info("Remuxing MKV message %d → fMP4", message_id)
+
+        headers = {
+            "Accept-Ranges": "bytes",
+            "Content-Type": _REMUX_OUTPUT_MIME,
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        }
+
+        return StreamingResponse(
+            stream_remuxed_chunks(message_id),
+            status_code=200,
+            headers=headers,
+            media_type=_REMUX_OUTPUT_MIME,
+        )
+
+    # ---- Direct passthrough path (MP4, WebM, audio) ----
     try:
         start, end = parse_range_header(range or "", file_size)
     except ValueError:
@@ -126,7 +165,6 @@ async def stream_media(
     if is_partial:
         headers["Content-Range"] = build_content_range(start, end, file_size)
 
-    # Calculate Telethon offset and limit
     offset = start
     limit = content_length
 
@@ -138,12 +176,12 @@ async def stream_media(
     )
 
 
+# ---------------------------------------------------------------------------
+# Thumbnail
+# ---------------------------------------------------------------------------
 @router.get("/thumbnail/{message_id}")
 async def get_thumbnail(message_id: int):
-    """Serve a stored thumbnail image from HF Bucket storage.
-
-    If the thumbnail doesn't exist in storage, returns 404.
-    """
+    """Serve a stored thumbnail image from HF Bucket storage."""
     filename = f"{message_id}.jpg"
     filepath = get_thumbnail_path(filename)
     if filepath is None:
@@ -151,6 +189,9 @@ async def get_thumbnail(message_id: int):
     return FileResponse(filepath, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
+# ---------------------------------------------------------------------------
+# Download — always direct passthrough (original file, no remux)
+# ---------------------------------------------------------------------------
 @router.get("/download/{message_id}")
 async def download_media(
     message_id: int,
@@ -158,7 +199,7 @@ async def download_media(
 ) -> StreamingResponse:
     """Download media from Telegram with HTTP Range support.
 
-    Increments the download counter after successful transfer.
+    Always serves the original file (no remux). Increments download counter.
     """
     info = await _resolve_media_info(message_id)
     media = info["media"]
@@ -179,7 +220,6 @@ async def download_media(
     status_code = 206 if is_partial else 200
     content_length = end - start + 1
 
-    # Build a filename from the title
     ext_map = {
         "video/mp4": ".mp4",
         "video/webm": ".webm",
@@ -202,7 +242,6 @@ async def download_media(
     if is_partial:
         headers["Content-Range"] = build_content_range(start, end, file_size)
 
-    # Track download
     await track_download(media["slug"])
     await increment_downloads(media["slug"])
 
